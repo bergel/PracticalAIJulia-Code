@@ -47,14 +47,20 @@ end
 
 @testset "OR" begin
     p = Neuron([1, 1], -0.5)
-    table = [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 1]]
+    table = [[0, 0, 0],
+             [0, 1, 1],
+             [1, 0, 1],
+             [1, 1, 1]]
     @test all(row -> feed(p, row[1:end-1]) == last(row), table)
 end
 
 
 @testset "NOR" begin
     p = Neuron([-1, -1], 0.5)
-    table = [[0, 0, 1], [0, 1, 0], [1, 0, 0], [1, 1, 0]]
+    table = [[0, 0, 1],
+             [0, 1, 0],
+             [1, 0, 0],
+             [1, 1, 0]]
     @test all(row -> feed(p, row[1:end-1]) == last(row), table)
 end
 
@@ -132,7 +138,7 @@ feed(p, [0, 1])  # Return 0
 
 @testset "Training OR" begin
     n = Neuron([-1, -1], 2)
-    for _ in 1:40
+    for epoch in 1:40
         train!(n, [0, 0], 0)
         train!(n, [0, 1], 1)
         train!(n, [1, 0], 1)
@@ -148,7 +154,7 @@ end
 
 @testset "Training NOT" begin
     n = Neuron([-1], 2)
-    for _ in 1:40
+    for epoch in 1:40
         train!(n, [0], 1)
         train!(n, [1], 0)
     end
@@ -189,15 +195,16 @@ for number_of_epochs in 1:40
     n = Neuron([-1, -1], 2)
 
     # Run `number_of_epochs` epochs
-    for _ in 1:number_of_epochs
+    for epoch in 1:number_of_epochs
         for row in table
             train!(n, row[1:end-1], last(row))
         end
     end
 
     # Test the perceptron
-    test_precision = [feed(n, row[1:end-1]) == last(row) for row in table]
-    push!(precisions, sum(filter(v->v, test_precision)) / length(test_precision))
+    # A prediction of 1 means the prediction is correct, else it is 0
+    predictions = [feed(n, row[1:end-1]) == last(row) for row in table]
+    push!(precisions, sum(predictions) / length(predictions))
 end
 plot(precisions, xlabel="epochs", ylabel="precision", ylim=(0,1))
 
