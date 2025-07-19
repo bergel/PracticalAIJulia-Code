@@ -92,6 +92,7 @@ end
 
 
 function NNetwork(inputs_count::Int, hidden_count::Int, outputs_count::Int)
+    Random.seed!(42)
     output_layer = Layer(outputs_count, hidden_count)
     inner_layer = Layer(hidden_count, inputs_count, output_layer)
     return NNetwork(inner_layer)
@@ -99,6 +100,7 @@ end
 
 
 function NNetwork(inputs_count::Int, hidden_count1::Int, hidden_count2::Int, outputs_count::Int)
+    Random.seed!(42)
     output_layer = Layer(outputs_count, hidden_count2)
     inner_layer2 = Layer(hidden_count2, hidden_count1, output_layer)
     inner_layer1 = Layer(hidden_count1, inputs_count, inner_layer2)
@@ -178,47 +180,47 @@ end
 
 
 ### Step 3: updating neurons parameters
-function update_weights(network::NNetwork, initial_inputs)
-    update_weights(network.root_layer, initial_inputs)
+function update_weights(network::NNetwork, initial_inputs, learning_rate)
+    update_weights(network.root_layer, initial_inputs, learning_rate)
 end
 
 
-function update_weights(layer::Layer, inputs)
+function update_weights(layer::Layer, inputs, learning_rate)
     # Update the weights of the neuron based on the set of initial input.
     # Assume that layer is the first layer of a network
     for n in layer.neurons
-        adjust_weight_with_inputs(n, inputs)
-        adjust_bias(n)
+        adjust_weight_with_inputs(n, inputs, learning_rate)
+        adjust_bias(n, learning_rate)
     end
     isnothing(layer.next_layer) && return
-    update_weights(layer.next_layer)
+    update_weights(layer.next_layer, learning_rate)
 end
 
 
-function update_weights(layer::Layer)
+function update_weights(layer::Layer, learning_rate)
     # Update the weights of the neuron based on the set of initial input.
     # layer is not a root layer
     inputs = map(n->n.output, layer.previous_layer.neurons)
-    update_weights(layer, inputs)
+    update_weights(layer, inputs, learning_rate)
 end
 
 
-function adjust_weight_with_inputs(neuron::Neuron, inputs, learning_rate=0.1)
+function adjust_weight_with_inputs(neuron::Neuron, inputs, learning_rate)
     for (index, an_input) in enumerate(inputs)
         neuron.weights[index] += learning_rate * neuron.delta * an_input
     end
 end
 
 
-function adjust_bias(neuron::Neuron, learning_rate=0.1)
+function adjust_bias(neuron::Neuron, learning_rate)
     neuron.bias += learning_rate * neuron.delta
 end
 
 
-function train!(network::NNetwork, inputs, desired_output)
+function train!(network::NNetwork, inputs::Vector{T}, desired_output::Vector{T}, learning_rate::Float64=0.1) where T <: Number
     feed(network, inputs)
     backward_propagate_error(network, desired_output)
-    update_weights(network, inputs)
+    update_weights(network, inputs, learning_rate)
 end
 
 

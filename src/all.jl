@@ -1,3 +1,7 @@
 include("02-Perceptron.jl")
 include("03-Neuron.jl")
 include("04-NeuralNetwork.jl")
+include("05-Learning.jl")
+include("06-Data.jl")
+include("07-GeneticAlgorithm.jl")
+include("08-GAExamples.jl")
