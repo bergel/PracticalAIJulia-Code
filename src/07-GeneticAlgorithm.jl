@@ -14,7 +14,12 @@ end
 # `genes_count` is the number of genes of the individuals
 # `gene_factor` is a function (index, individual) -> value
 function build_individual(genes_count::Integer, gene_factory::Function)
-	return Individual([gene_factory(i, nothing) for i in 1:genes_count])
+	empty_genetic_data = convert(Vector{Any}, fill(nothing, genes_count))
+	individual = Individual(empty_genetic_data)
+	for i in 1:genes_count
+		individual.genes[i] = gene_factory(i, individual)
+	end
+	return individual
 end
 
 
@@ -51,6 +56,7 @@ end
 end
 
 
+using Plots: histogram
 Random.seed!(42)
 POPULATION_SIZE = 1000
 individuals = build_population(POPULATION_SIZE, 3, (i, ind)->rand('a':'z'))
@@ -102,7 +108,7 @@ pick_cutpoint(i::Individual) = rand(1:genes_count(i))
 
 # Return a new individual
 function crossover(
-	::GACrossoverOperation,
+	op,
 	i1::Individual,
 	i2::Individual,
 	cutpoint::Integer
@@ -287,15 +293,21 @@ function terminate(
 	function f(logs)
 		current_generation = logs[end].generation
 
-		# The number of generations is limited
+		# Do not terminate if we have not reached the sufficient
+		# number of generations.
 		current_generation < frame && return false
 
-		# The number of generations is limited
+		# We passed the maximum number of generations, so we terminate
 		current_generation > max_generations && return true
 
-		old_fitness = logs[end-frame+1].best_fitness
+		previous_fitness = logs[end-frame+1].best_fitness
 		current_fitness = logs[end].best_fitness
-		return ((current_fitness - old_fitness) / old_fitness) <= delta_fitness
+
+		# If no progress were made, then the evolution is terminated
+		previous_fitness == current_fitness && return true
+
+		# Else we measure the variation and act accordingly
+		return abs((current_fitness - previous_fitness) / previous_fitness) <= delta_fitness
 	end
 	return f
 end
@@ -339,6 +351,7 @@ function ga_run(
 	selection = GATournamentSelection(),
 	elitism::Bool = true,
 	verbose::Bool = true,
+	end_of_generation_callback::Function = (logs)->nothing,
 )
 	Random.seed!(seed)
 
@@ -373,6 +386,7 @@ function ga_run(
 			best
 		)
 		push!(logs, log)
+		end_of_generation_callback(logs)
 		verbose && @info "Generation $(log.generation) : $(log.best.fitness)"
 
 		population = new_population

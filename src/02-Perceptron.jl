@@ -1,4 +1,4 @@
-# The perceptron model
+# The Perceptron Model
 ## Perceptron as a kind of neuron
 ## Implementing the perceptron
 mutable struct Neuron
@@ -167,7 +167,7 @@ end
 ## Drawing graphs
 import Pkg
 Pkg.add("Plots")
-using Plots
+using Plots: plot!, scatter, plot
 plot([0, 1, 5, -1])
 
 
@@ -209,7 +209,7 @@ end
 plot(precisions, xlabel="epochs", ylabel="precision", ylim=(0,1))
 
 
-## Predicting and 2D points
+## Predicting 2D points
 using Random
 Random.seed!(42)
 

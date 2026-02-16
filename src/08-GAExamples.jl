@@ -40,43 +40,6 @@ ga_plot(logs)
 
 
 ## Mutation rate vs population size
-SECRET_WORD="helloworld"
-distance_from_word(genes) = sum(c1 == c2 for (c1, c2) in zip(genes, SECRET_WORD))
-
-function t(logs)
-	return logs[end].best_fitness == length(SECRET_WORD) ||
-		logs[end].generation == 200
-end
-
-mutation_rate_range = 0:0.0025:1
-population_size_range = 1:2:20
-labels_X = mutation_rate_range
-labels_Y = population_size_range
-gen_count = []
-
-for mutation_rate in mutation_rate_range
-	@info "mutation rate=$(mutation_rate)"
-
-	for population_size in population_size_range
-		logs = ga_run(
-			distance_from_word,
-			(_, _) -> rand('a':'z'),
-			length(SECRET_WORD)
-			;
-			population_size = population_size,
-			termination=t,
-			mutation_operator=GAMutationOperation(mutation_rate),
-			verbose = false
-		)
-		push!(gen_count, length(logs))
-	end
-end
-
-values_to_plot = reshape(gen_count, (length(population_size_range), length(mutation_rate_range)))
-color_schema = cgrad(:Purples, rev = true)
-heatmap(labels_X, labels_Y, values_to_plot, color=color_schema)
-
-
 ## Fundamental theorem of arithmetic
 function break_down(number_to_break_down)
 	prime_numbers = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47]
@@ -93,7 +56,6 @@ function break_down(number_to_break_down)
 		;
 		population_size = 1_000,
 		termination=(logs)->logs[end].best_fitness == 0 || (logs[end].generation > 100),
-
 		compare_fitness=<
 	)
 

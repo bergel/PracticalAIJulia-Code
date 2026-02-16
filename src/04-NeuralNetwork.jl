@@ -92,7 +92,6 @@ end
 
 
 function NNetwork(inputs_count::Int, hidden_count::Int, outputs_count::Int)
-    Random.seed!(42)
     output_layer = Layer(outputs_count, hidden_count)
     inner_layer = Layer(hidden_count, inputs_count, output_layer)
     return NNetwork(inner_layer)
@@ -100,7 +99,6 @@ end
 
 
 function NNetwork(inputs_count::Int, hidden_count1::Int, hidden_count2::Int, outputs_count::Int)
-    Random.seed!(42)
     output_layer = Layer(outputs_count, hidden_count2)
     inner_layer2 = Layer(hidden_count2, hidden_count1, output_layer)
     inner_layer1 = Layer(hidden_count1, inputs_count, inner_layer2)

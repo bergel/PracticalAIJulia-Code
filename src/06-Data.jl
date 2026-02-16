@@ -108,6 +108,7 @@ predict(n, [0.4, 0.7, 0.6]) # Return 3
 
 
 ## Visualizing the error and the precision
+using Plots: twinx
 function nn_plot(n::NNetwork)
 	plot(
 		n.errors,
