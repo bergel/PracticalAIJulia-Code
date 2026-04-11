@@ -8,26 +8,30 @@ mutable struct Layer
 end
 
 
-function Layer(neurons_count::Integer, weights_count::Integer)
+function Layer(neurons_count::Integer, weights_count::Integer, rng=Random.default_rng())
     neurons = []
     for _ in 1:neurons_count
         # Generate weights_count random numbers ranging from -2 to 2
-        weights = rand(Float64, weights_count) .* 4 .- 2
+        weights = rand(rng, -2:eps():2, weights_count)
 		# Generate a bias, ranging from -2 to 2
-        bias = rand(Float64) * 4 - 2
-        push!(neurons, Neuron(weights, bias, SigmoidAF()))
+        bias = rand(rng, -2:eps():2)
+        n = Neuron(weights, bias)
+        sigmoid!(n)
+        push!(neurons, n)
     end
     return Layer(nothing, nothing, neurons)
 end
 
 
-function Layer(neurons_count::Integer, weights_count::Integer, next_layer::Layer)
-    new_layer = Layer(neurons_count, weights_count)
+function Layer(neurons_count::Integer, weights_count::Integer, next_layer::Layer, rng=Random.default_rng())
+    new_layer = Layer(neurons_count, weights_count, rng)
     new_layer.next_layer = next_layer
     next_layer.previous_layer = new_layer
     return new_layer
 end
 
+
+isoutput(layer::Layer) = isnothing(layer.next_layer)
 
 function feed(layer::Layer, input_values::Vector{T}) where T <: Number
     current_output = map(n->feed(n, input_values), layer.neurons)
@@ -38,17 +42,16 @@ function feed(layer::Layer, input_values::Vector{T}) where T <: Number
     end
 end
 
-isoutput(layer::Layer) = isnothing(layer.next_layer)
-
 
 function output_layer(layer::Layer)
     return isoutput(layer) ? layer : output_layer(layer.next_layer)
 end
 
 
+using StableRNGs
 @testset "Output layer" begin
-    Random.seed!(42)
-    nl = Layer(3, 4)
+    rng = StableRNG(42)
+    nl = Layer(3, 4, rng)
     @test isoutput(nl)
     @test output_layer(nl) == nl
     @test length(nl.neurons) == 3
@@ -62,18 +65,17 @@ end
 
 
 @testset "Layered chain" begin
-    Random.seed!(42)
-    nl = Layer(3, 4, Layer(4, 3))
+    rng = StableRNG(42)
+
+    nl = Layer(3, 4, Layer(4, 3, rng), rng)
     @test !isoutput(nl)
     @test isoutput(nl.next_layer)
     @test output_layer(nl) == nl.next_layer
 
     output = feed(nl, [1, 2, 3, 4])
     @test length(output) == 4
-    expected = [0.6784327847793552, 0.7200854527228148, 0.7255330924454609, 0.16459558102999708]
-    for (e, o) in zip(expected, output)
-        @test isclose(e, o)
-    end
+    expected = [0.4436306329445056, 0.08390965814246651, 0.9577726440831043, 0.24383672287027]
+    @test all(isclose.(expected,output))
 end
 
 
@@ -81,8 +83,10 @@ end
 mutable struct NNetwork
     root_layer::Layer
     errors::Vector{Number}
-    precisions::Vector{Number}
-    NNetwork(root_layer) = new(root_layer, [], [])
+    accuracies::Vector{Number}
+    rng
+    NNetwork(root_layer) = NNetwork(root_layer, Random.default_rng())
+    NNetwork(root_layer, rng) = new(root_layer, [], [], rng)
 end
 
 
@@ -91,18 +95,29 @@ function feed(nn::NNetwork, input_values::Vector{T}) where T <: Number
 end
 
 
-function NNetwork(inputs_count::Int, hidden_count::Int, outputs_count::Int)
-    output_layer = Layer(outputs_count, hidden_count)
-    inner_layer = Layer(hidden_count, inputs_count, output_layer)
+function NNetwork(
+    inputs_count::Int, 
+    hidden_count::Int, 
+    outputs_count::Int, 
+    rng=Random.default_rng()
+)
+    output_layer = Layer(outputs_count, hidden_count, rng)
+    inner_layer = Layer(hidden_count, inputs_count, output_layer, rng)
     return NNetwork(inner_layer)
 end
 
 
-function NNetwork(inputs_count::Int, hidden_count1::Int, hidden_count2::Int, outputs_count::Int)
-    output_layer = Layer(outputs_count, hidden_count2)
-    inner_layer2 = Layer(hidden_count2, hidden_count1, output_layer)
-    inner_layer1 = Layer(hidden_count1, inputs_count, inner_layer2)
-    return NNetwork(inner_layer1)
+function NNetwork(
+    inputs_count::Int, 
+    hidden_count1::Int, 
+    hidden_count2::Int, 
+    outputs_count::Int, 
+    rng=Random.default_rng()
+)
+    output_layer = Layer(outputs_count, hidden_count2, rng)
+    inner_layer2 = Layer(hidden_count2, hidden_count1, output_layer, rng)
+    inner_layer1 = Layer(hidden_count1, inputs_count, inner_layer2, rng)
+    return NNetwork(inner_layer1, rng)
 end
 
 
@@ -111,13 +126,13 @@ outputs_count(nn::NNetwork) = length(output_layer(nn).neurons)
 
 
 @testset "Simple network evaluation" begin
-    Random.seed!(42)
-    n = NNetwork(2, 2, 1)
+    rng = StableRNG(42)
+    n = NNetwork(2, 2, 1, rng)
     @test outputs_count(n) == 1
 
     output_as_array = feed(n, [1, 3])
     output = first(output_as_array)
-    @test isclose(output, 0.538)
+    @test isclose(output, 0.289)
 end
 
 
@@ -126,7 +141,7 @@ end
 function feed(n::Neuron, inputs::Vector{T}) where T <: Number
     @assert length(n.weights) == length(inputs) "Inputs and weights should have same size"
     z = sum(map(*, n.weights, inputs)) + n.bias
-    n.output = eval(n.activation_function, z)
+    n.output = n.activation_function(z)
     return n.output
 end
 
@@ -173,7 +188,7 @@ end
 
 
 function adjust_delta_with(n::Neuron, the_error)
-    n.delta = the_error * derivative(n.activation_function, n.output)
+    n.delta = the_error * n.derivative_activation_function(n.output)
 end
 
 

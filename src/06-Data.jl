@@ -16,29 +16,38 @@ end
 # `learning_rate` is the learning rate, a small positive number
 function train!(n::NNetwork, data::Vector, epochs_count::Int, learning_rate::Float64=0.1)
 	for _ in 1:epochs_count
-		error_sum = 0
-		epoch_precision = 0
-		precisions = []
+		# Training
 		for row in data
-			# the convertion below is just to make sure we do not end up with
+			# the conversion below is just to make sure we do not end up with
 			# Vector{Any} if we have float and integer values.
 			input = convert(Vector{Number}, row[1:end-1])
-			output = feed(n, input)
-			expected_output = zero(1:outputs_count(n))
+			feed(n, input)
+			expected_output = zeros(outputs_count(n))
 			expected_output[convert(Integer, row[end]) + 1] = 1
 
-			# If our prediction marches the expected value, we increase the precision
+			backward_propagate_error(n, expected_output)
+			update_weights(n, input, learning_rate)
+		end
+
+		# Evaluating
+		error_sum = 0
+		epoch_hits = 0
+		for row in data
+			input = convert(Vector{Number}, row[1:end-1])
+			output = feed(n, input)
+			expected_output = zeros(outputs_count(n))
+			expected_output[convert(Integer, row[end]) + 1] = 1
+
+			# If our prediction marches the expected value, we increase the accuracy
 			if row[end] == predict(n, input)
-				epoch_precision += 1
+				epoch_hits += 1
 			end
 
 			all_errors = [(expected_output[i] - output[i])^2 for i in 1:outputs_count(n)]
 			error_sum += sum(all_errors)
-			backward_propagate_error(n, expected_output)
-			update_weights(n, input, learning_rate)
 		end
 		push!(n.errors, error_sum)
-		push!(n.precisions, epoch_precision / length(data))
+		push!(n.accuracies, epoch_hits / length(data))
 	end
 end
 
@@ -107,7 +116,7 @@ train!(n, data, 1_000)
 predict(n, [0.4, 0.7, 0.6]) # Return 3
 
 
-## Visualizing the error and the precision
+## Visualizing the error and the prediction accuracy
 using Plots: twinx
 function nn_plot(n::NNetwork)
 	plot(
@@ -122,10 +131,10 @@ function nn_plot(n::NNetwork)
 	)
 	plot!(
 		twinx(),
-		n.precisions,
+		n.accuracies,
 		color=:red,
 		xticks=:none,
-		label="precision",
+		label="accuracy",
 		legend=:topright,
 		y_foreground_color_border=:red,
 		y_foreground_color_text=:red,
@@ -164,6 +173,16 @@ train!(n, data, 5_000)
 
 
 ## Iris dataset
+import Pkg
+Pkg.add("CSV")
+Pkg.add("DataFrames")
+
+
+using Pkg
+Pkg.add("CSV")
+Pkg.add("DataFrames")
+
+
 using CSV, DataFrames
 CSV.read(download("https://agileartificialintelligence.github.io/Datasets/iris.csv"), DataFrame)
 
@@ -182,6 +201,7 @@ end
 
 
 ## Training a network with the iris dataset
+Random.seed!(42)
 n = NNetwork(4, 6, 3)
 train!(n, iris_data, 1000)
 nn_plot(n)
@@ -234,6 +254,7 @@ train!(n, data_training, 1000)
 nn_plot(n)
 
 
+Random.seed!(42)
 cut = 0.8
 data_training_length = round(Int, length(iris_data) * cut)
 data_test_length = round(Int, length(iris_data) - data_training_length)
@@ -245,6 +266,7 @@ train!(n, data_training, 1000)
 
 correct_ratio = sum([predict(n, row[1:end-1]) == row[end] for row in data_test]) / data_test_length
 round(correct_ratio, digits = 2)
+
 
 
 cut = 0.6
@@ -376,25 +398,38 @@ function train!(
 )
 	data = should_normalize ? normalize_data(raw_data) : raw_data
 	for _ in 1:epochs_count
+		# Training
+		for row in data
+			# the conversion below is just to make sure we do not end up with
+			# Vector{Any} if we have float and integer values.
+			input = convert(Vector{Number}, row[1:end-1])
+			feed(n, input)
+			expected_output = zeros(outputs_count(n))
+			expected_output[convert(Integer, row[end]) + 1] = 1
+
+			backward_propagate_error(n, expected_output)
+			update_weights(n, input, learning_rate)
+		end
+
+		# Evaluating
 		error_sum = 0
-		epoch_precision = 0
-		precisions = []
+		epoch_hits = 0
 		for row in data
 			input = convert(Vector{Number}, row[1:end-1])
-			output = feed(n, convert(Vector{Number}, input))
-			expected_output = zero(1:outputs_count(n))
+			output = feed(n, input)
+			expected_output = zeros(outputs_count(n))
 			expected_output[convert(Integer, row[end]) + 1] = 1
+
+			# If our prediction marches the expected value, we increase the accuracy
 			if row[end] == predict(n, input)
-				epoch_precision += 1
+				epoch_hits += 1
 			end
 
 			all_errors = [(expected_output[i] - output[i])^2 for i in 1:outputs_count(n)]
 			error_sum += sum(all_errors)
-			backward_propagate_error(n, expected_output)
-			update_weights(n, input, learning_rate)
 		end
 		push!(n.errors, error_sum)
-		push!(n.precisions, epoch_precision / length(data))
+		push!(n.accuracies, epoch_hits / length(data))
 	end
 end
 

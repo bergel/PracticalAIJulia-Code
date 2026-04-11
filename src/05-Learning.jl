@@ -17,7 +17,7 @@ points = [(1, 3), (3, 5.2), (2, 4.1), (4, 7.5)]
 a = 0.5
 b = 3
 f(x) = a*x + b
-j = sum([(yi - f(xi))^2 for (xi, yi) in points]) / length(points)
+l = sum([(yi - f(xi))^2 for (xi, yi) in points]) / length(points)
 
 
 ## Gradient descent
@@ -58,7 +58,7 @@ for _ in 1:1000
 	mse = sum([(yi - f(xi))^2 for (xi, yi) in points]) / pts_count
 	push!(result, mse)
 end
-plot!(result)
+plot(result)
 
 
 ## What have we seen in this chapter?

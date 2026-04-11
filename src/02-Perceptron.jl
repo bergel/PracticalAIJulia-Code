@@ -5,12 +5,20 @@ mutable struct Neuron
 	weights::Vector{Number}
 	bias::Number
     activation_function
+    derivative_activation_function
     delta
     output
 end
 
-Neuron(weights, bias) = Neuron(weights, bias, nothing)
-Neuron(weights, bias, activation_function) = Neuron(weights, bias, activation_function, 0, 0)
+Neuron(weights, bias) = Neuron(weights, bias, nothing, nothing)
+function Neuron(weights, bias, activation_function, derivative_activation_function)
+    return Neuron(
+        weights, 
+        bias, 
+        activation_function, 
+        derivative_activation_function, 
+        0, 0)
+end
 
 
 function feed(n::Neuron, inputs::Vector{T}) where T <: Number

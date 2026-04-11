@@ -2,33 +2,31 @@
 ## Limit of a single perceptron
 ## Activation function
 stepf(x) = x > 0 ? 1 : 0
-plot(stepf, -10:0.01:10, label="StepF")
+plot(stepf, -10:0.01:10, label="Step function")
 
 
 ## The sigmoid neuron
 sigmoid(x) = 1 / (1 + (exp(-x)))
-plot(sigmoid, -10:0.01:10, label="SigmoidF")
-
-
-## Implementing the activation functions
-abstract type activation_function end
-
-
-struct SigmoidAF <: activation_function end
-eval(::SigmoidAF, z) = 1 / (1 + exp(-z))
-derivative(::SigmoidAF, output) = output * (1 - output)
-
-
-struct StepAF <: activation_function end
-eval(::StepAF, z) = z > 0 ? 1 : 0
-derivative(::StepAF, output) = 1
+plot(sigmoid, -10:0.01:10, label="sigmoid")
 
 
 ## Extending the neuron with the activation functions
+function sigmoid!(n::Neuron)
+    n.activation_function = z -> 1 / (1 + exp(-z))
+    n.derivative_activation_function = z -> z * (1 - z)
+end
+
+
+function step!(n::Neuron)
+    n.activation_function = z -> z > 0 ? 1 : 0
+    n.derivative_activation_function = z -> 0
+end
+
+
 function feed(n::Neuron, inputs::Vector{T}) where T <: Number
     @assert length(n.weights) == length(inputs) "Inputs and weights should have same size"
     z = sum(map(*, n.weights, inputs)) + n.bias
-    return eval(n.activation_function, z)
+    return n.activation_function(z)
 end
 
 
@@ -40,20 +38,11 @@ function train!(
 ) where T <: Number where K <: Number
     output = feed(n, inputs)
     diff = desired_output - output
-    delta = diff * derivative(n.activation_function, output)
+    delta = diff * n.derivative_activation_function(output)
     for (index, input) in enumerate(inputs)
         n.weights[index] += learning_rate * delta * input
     end
     n.bias += learning_rate * delta
-end
-
-
-function sigmoid!(n::Neuron)
-    n.activation_function = SigmoidAF()
-end
-
-function step!(n::Neuron)
-    n.activation_function = StepAF()
 end
 
 
