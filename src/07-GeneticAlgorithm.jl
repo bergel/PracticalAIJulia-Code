@@ -37,8 +37,8 @@ end
 genes_count(individual::Individual) = length(individual.genes)
 
 
-# Build a population made of `individual_count` individual, each having `gene_count` genes
-# `gene_factory` is a two-argument function
+# Build a population made of an individual, chromosome length, 
+# and a two-argument function to build values
 function build_population(
 	individual_count::Integer,
 	gene_count::Integer,
@@ -219,15 +219,9 @@ end
 # Return true if `ind1` is better than `ind2`
 function is_better(fitness::Function, ind1::Individual, ind2::Individual, compare_fitness::Function)
 	# Make sure we have the fitness of both individuals
-	compute_fitness!(ind1::Individual, fitness::Function)
-	compute_fitness!(ind2::Individual, fitness::Function)
+	compute_fitness(ind1, fitness)
+	compute_fitness(ind2, fitness)
 	return compare_fitness(ind1.fitness, ind2.fitness)
-end
-
-# Avoid to compute the fitness more than once per individual
-function compute_fitness!(ind::Individual, fitness::Function)
-	isnothing(ind.fitness) || return
-	ind.fitness = fitness(ind.genes)
 end
 
 
@@ -245,6 +239,7 @@ function build_new_population(
 	new_population = Individual[]
 	best = nothing
 
+	# Step 1: Handle elitism (keep the best)
 	offset = 0
 	if elitism
 		best_in_current = current_population[1]
@@ -258,13 +253,18 @@ function build_new_population(
 	end
 
 	for _ in 1:(length(current_population) - offset)
+		# Step 2: Select two parents
 		ind1 = select_individual(selection, current_population, fitness, compare_fitness)
 		ind2 = select_individual(selection, current_population, fitness, compare_fitness)
-		child = mutate(mutation_operator, crossover(crossover_operator, ind1, ind2), gene_factory)
+
+		# Step 3: apply crossover
+		child = crossover(crossover_operator, ind1, ind2)
+
+		# Step 4: apply mutation
+		child = mutate(mutation_operator, child, gene_factory)
+
+		# Step 5: Insert the new child into the population
 		push!(new_population, child)
-		if isnothing(best) || is_better(fitness, child, best, compare_fitness)
-			best = child
-		end
 	end
 	return new_population
 end
@@ -313,7 +313,11 @@ function terminate(
 end
 
 
-function best_individual(population::Vector{Individual}, fitness::Function, compare_fitness::Function)
+function best_individual(
+	population::Vector{Individual}, 
+	fitness::Function, 
+	compare_fitness::Function
+)
 	best = nothing
 	for ind in population
 		if isnothing(best) || is_better(fitness, ind, best, compare_fitness)
@@ -324,7 +328,11 @@ function best_individual(population::Vector{Individual}, fitness::Function, comp
 end
 
 
-function worse_individual(population::Vector{Individual}, fitness::Function, compare_fitness::Function)
+function worse_individual(
+	population::Vector{Individual}, 
+	fitness::Function, 
+	compare_fitness::Function
+)
 	worse = nothing
 	for ind in population
 		if isnothing(worse) || is_better(fitness, worse, ind, compare_fitness)
@@ -372,8 +380,8 @@ function ga_run(
 							elitism,
 						)
 
-		best = best_individual(new_population, is_better, compare_fitness)
-		worse = worse_individual(new_population, is_better, compare_fitness)
+		best = best_individual(new_population, fitness, compare_fitness)
+		worse = worse_individual(new_population, fitness, compare_fitness)
 		fitness_values = map(i->i.fitness, new_population)
 		average_fitness = mean(fitness_values)
 		median_fitness = median(fitness_values)

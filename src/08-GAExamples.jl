@@ -1,5 +1,11 @@
 # Genetic Algorithm in Action
 ## Visualizing the evolution
+import Pkg
+Pkg.add("Plots")
+
+
+using Plots: plot, plot!
+
 function ga_plot(logs::Vector)
 	best_fitnesses = [l.best_fitness for l in logs]
 	worse_fitnesses = [l.worse_fitness for l in logs]
@@ -190,7 +196,7 @@ for (i, m) in enumerate(meetings)
 end
 
 
-## Mini sodoku
+## Mini Sudoku
 # Useful for padding the numbers
 using Printf
 
@@ -215,7 +221,7 @@ sums = [
 	[3, 6, 9]
 ]
 
-function mini_soduku_f(genes)
+function mini_sudoku_f(genes)
 	score = 0
 	for s in sums
 		sum_in_one_direction = sum(map(index -> genes[index], s))
@@ -226,7 +232,7 @@ function mini_soduku_f(genes)
 end
 
 logs = ga_run(
-	mini_soduku_f,
+	mini_sudoku_f,
 	(_, _) -> rand(numbers),
 	length(numbers)
 	;
@@ -239,8 +245,10 @@ for (i, n) in enumerate(logs[end].best.genes)
 	@printf "%3i" n
 	mod(i, 3) == 0 && println()
 end
+ga_plot(logs)
 
 
 ## Exploration and Exploitation
+## Adaptive mutation strategies
 ## What have we seen in this chapter?
 ## Acknowledgement
