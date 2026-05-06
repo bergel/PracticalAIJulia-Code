@@ -23,6 +23,10 @@ function nn_materialize!(n::NNetwork, values::Vector)
 	current_layer = n.root_layer
 	while !isnothing(current_layer)
 		for neuron in current_layer.neurons
+			@assert(
+				length(values) >= index + length(neuron.weights),
+				"Incorrect argument length"
+			)
 			new_weights = values[index:(index + length(neuron.weights) - 1)]
 			neuron.weights = convert(Vector{Number}, new_weights)
 			neuron.bias = values[(index + length(neuron.weights))]
@@ -70,7 +74,7 @@ function nn_error(genes)
 end
 
 
-function nn_precision(genes)
+function nn_accuracy(genes)
 	n = NNetwork(2, 3, 1)
 	nn_materialize!(n, genes)
 
@@ -105,6 +109,7 @@ data = [
 	[1, 1, 1, 7],
 ]
 
+
 # Number of input values per row
 data_inputs_count = length(first(data)) - 1
 
@@ -112,6 +117,7 @@ data_inputs_count = length(first(data)) - 1
 data_outputs_count = length(Set([r[end] for r in data]))
 mid_layer_size = data_inputs_count * 2
 chromosome_length = length(nn_serialize(NNetwork(data_inputs_count, mid_layer_size, data_outputs_count)))
+
 
 function nn_error(genes)
 	n = NNetwork(data_inputs_count, mid_layer_size, data_outputs_count)
@@ -127,7 +133,8 @@ function nn_error(genes)
 	return mean(tmp)
 end
 
-function nn_precision(genes)
+
+function nn_accuracy(genes)
 	n = NNetwork(data_inputs_count, mid_layer_size, data_outputs_count)
 	nn_materialize!(n, genes)
 	score = 0
@@ -141,6 +148,7 @@ function nn_precision(genes)
 	return score / length(data)
 end
 
+
 logs = ga_run(
 	nn_error,
 	(_, _) -> rand() * 10 - 5,
@@ -150,7 +158,7 @@ logs = ga_run(
 	mutation_operator=GAMutationOperation(0.001),
 	termination = logs ->
 					logs[end].generation == 200 ||
-					nn_precision(logs[end].best.genes) == 1.0
+					nn_accuracy(logs[end].best.genes) == 1.0
 			,
 	compare_fitness = <
 );
@@ -195,6 +203,8 @@ logs = ga_run(
 	termination=logs->logs[end].best.fitness < 0.01 || logs[end].generation == 80,
 	compare_fitness = <
 );
+
+ga_plot(logs)
 
 
 ## Further reading about NeuroGenetic

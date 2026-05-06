@@ -1,5 +1,6 @@
-# Evolving Walking Creature
-## Straight application of genetic algorithm
+# Evolving Walking Creatures
+## Straightforward Application of Genetic Algorithm
+# This code runs in less than 5 minutes on an Apple M2 max
 # This function will be redefined along this chapter
 # Return the distance walked by a creature with the provided genes.
 function open_race(logs)
@@ -56,4 +57,5 @@ open_world(w)
 
 
 ## Climbing stairs
-## What have we seen in this chapter?
+## Alternative Fitness Function
+## Summary

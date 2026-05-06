@@ -52,7 +52,7 @@ function train!(n::NNetwork, data::Vector, epochs_count::Int, learning_rate::Flo
 end
 
 
-# Make a prediction. The function assumes that the number of output equals the number of
+# Make a prediction. The function assumes that the number of outputs equals the number of
 # different values the network can output.
 function predict(n::NNetwork, input::Vector{T}) where T <: Number
 	output = feed(n, input)

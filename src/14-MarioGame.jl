@@ -1,5 +1,9 @@
 # The Platform Video Game
 ## Dependencies
+import Pkg
+Pkg.add("Cairo")
+
+
 using Roassal
 using Random
 using Cairo
@@ -11,25 +15,27 @@ const CELL_SIZE = 20
 
 
 using Downloads
-global IMAGES_CACHES = Dict{String, Any}()
+const ASSETS_URL = "http://raw.githubusercontent.com/bergel/PracticalAIJulia-Code/main/platform_game_assets"
+const IMAGES_CACHE = Dict{String, Any}()
 function initialize_cache()
-    if !isempty(IMAGES_CACHES)
+    if !isempty(IMAGES_CACHE)
         return
     end
-	url = "http://raw.githubusercontent.com/bergel/PracticalAIJulia-Code/main/platform_game_assets"
-	path = "/tmp"
-	function get_resource(name)
-		filename = joinpath(path, "$(name).png")
-		isfile(filename) && return filename
-		Downloads.download("$(url)/$(name).png", filename)
-	end
-	load_resource(name) = Cairo.read_from_png(get_resource(name))
+    path = tempdir()
+    get_resource(name) = begin
+        filename = joinpath(path, "$(name).png")
+        if !isfile(filename)
+            Downloads.download("$(ASSETS_URL)/$(name).png", filename)
+        end
+        filename
+    end
+    load_resource(name) = Cairo.read_from_png(get_resource(name))
 
-    IMAGES_CACHES["hero"] = load_resource("hero")
-    IMAGES_CACHES["monster"] = load_resource("monster")
-    IMAGES_CACHES["ground"] = load_resource("ground")
-    IMAGES_CACHES["tube"] = load_resource("tube")
-    IMAGES_CACHES["end"] = load_resource("end")
+    IMAGES_CACHE["hero"] = load_resource("hero")
+    IMAGES_CACHE["monster"] = load_resource("monster")
+    IMAGES_CACHE["ground"] = load_resource("ground")
+    IMAGES_CACHE["tube"] = load_resource("tube")
+    IMAGES_CACHE["end"] = load_resource("end")
 end
 initialize_cache()
 
@@ -44,7 +50,7 @@ mutable struct MNMonster
 
     function MNMonster(world)
         roassal_shape = RImage(
-			IMAGES_CACHES["monster"];
+			IMAGES_CACHE["monster"];
 			width = CELL_SIZE,
 			height = CELL_SIZE,
 			model=:monster
@@ -68,6 +74,9 @@ function is_far_from_hero(monster::MNMonster)
 end
 
 
+"""
+Update the monster's behavior for one game beat.
+"""
 function beat!(character::MNMonster)
     # Is the character too far from the hero? If yes, do nothing
     is_far_from_hero(character) && return
@@ -108,7 +117,10 @@ function beat!(character::MNMonster)
 end
 
 
-# Return true if the character moved, false otherwise
+"""
+Move the character by the given delta if the position is empty.
+Returns true if the move succeeded, false otherwise.
+"""
 function move!(character, delta::Tuple{Int,Int})
     is_empty = is_position_empty(character, delta)
     is_empty && translate_by!(character.roassal_shape, delta)
@@ -132,7 +144,7 @@ mutable struct MNHero
 
     function MNHero(ai_agent=nothing)
         roassal_shape = RImage(
-			IMAGES_CACHES["hero"];
+			IMAGES_CACHE["hero"];
 			width = CELL_SIZE,
 			height = CELL_SIZE,
 			model=:hero
@@ -150,10 +162,13 @@ function jump(character::MNHero)
 end
 
 
+"""
+Update the hero's behavior for one game beat, including AI actions, jumping, falling, and collision detection.
+"""
 function beat!(character::MNHero)
 	# Use the AI if an agent is set
     if !isnothing(character.ai_agent)
-	    character.world.abstract_view= abstract_view_game(character.world)
+	    character.world.abstract_view = abstract_view_game(character.world)
         actions = ask_ai(character.ai_agent, character.world.abstract_view)
         (:move_right in actions) && move!(character, (1,0))
         (:move_left in actions)  && move!(character, (-1,0))
@@ -251,7 +266,7 @@ end
 
 function add_brick!(world::MNWorld, position::Tuple{Int64, Int64})
     box = RImage(
-		IMAGES_CACHES["ground"];
+		IMAGES_CACHE["ground"];
 		width = CELL_SIZE,
 		height = CELL_SIZE,
 		model=:obstacle
@@ -273,7 +288,7 @@ function add_tube!(world::MNWorld, position::Tuple{Int64,Int64}, height::Int64=2
     x, y_start = position
     for y in (y_start - height):y_start
         box = RImage(
-			IMAGES_CACHES["tube"];
+			IMAGES_CACHE["tube"];
 			width = CELL_SIZE + 1,
 			height = CELL_SIZE + 1,
 			model=:obstacle
@@ -283,7 +298,7 @@ function add_tube!(world::MNWorld, position::Tuple{Int64,Int64}, height::Int64=2
         translate_to!(box, (x * CELL_SIZE, y * CELL_SIZE))
     end
 
-    box = RImage(IMAGES_CACHES["tube"];
+    box = RImage(IMAGES_CACHE["tube"];
 		width = CELL_SIZE,
 		height = CELL_SIZE,
 		model=:obstacle
@@ -292,7 +307,7 @@ function add_tube!(world::MNWorld, position::Tuple{Int64,Int64}, height::Int64=2
     translate_to!(box, ((x-1) * CELL_SIZE, (y_start - height) * CELL_SIZE))
 
     box = RImage(
-		IMAGES_CACHES["tube"];
+		IMAGES_CACHE["tube"];
 		width = CELL_SIZE,
 		height = CELL_SIZE,
 		model=:obstacle
@@ -379,7 +394,7 @@ function generate_map!(world::MNWorld, width::Int64, height::Int64)
     world.goal_position = (width-2, height-1)
     for y in 1:(height-1)
 		goal_shape = RImage(
-			IMAGES_CACHES["end"];
+			IMAGES_CACHE["end"];
 			width = CELL_SIZE,
 			height = CELL_SIZE,
 			model = :goal
@@ -452,6 +467,8 @@ function open_game(world::MNWorld)
         (event, canvas) -> begin delta_y[] = -1 end,
         (event, canvas) -> begin delta_y[] = 0 end
     )
+    
+    # Core of the interactive loop
     s = Base.Semaphore(1)
     function refreshing(animation)
 	    world.is_game_running || return

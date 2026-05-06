@@ -28,8 +28,7 @@ function evaluate!(node::NENode, value::Number)
 	node.z_value += value
 	node.received_values_count += 1
 
-	# If we have not less values than expected, this means other nodes must
-	# be evaluated before, so we return the function
+	# If we still wait for data, then we simply return
 	is_only_partially_evaluated(node) && return
 
 	if is_input(node) || is_bias(node)
@@ -65,6 +64,13 @@ function reset_node(node::NENode)
 end
 
 
+function reset_node_after_evaluation(node::NENode)
+	node.z_value = 0
+	node.received_values_count = 0
+	node.result = 0
+end
+
+
 sigmoid(z::Real) = 1.0 / (1.0 + exp(-z))
 
 
@@ -97,9 +103,10 @@ mutable struct NEIndividual
 	connections::Vector{NEConnection}
 	fitness::Union{Number, Nothing}
 	species
+	need_rebuild::Bool
 
 	NEIndividual() = NEIndividual([], [])
-	NEIndividual(nodes, connections) = new(nodes, connections, nothing, nothing)
+	NEIndividual(nodes, connections) = new(nodes, connections, nothing, nothing, true)
 end
 
 
@@ -116,22 +123,31 @@ function Base.copy(individual::NEIndividual)
 end
 
 
-function add_node!(individual::NEIndividual, kind::Symbol)
-	reset_network(individual)
-	node = NENode(length(individual.nodes) + 1, kind)
+function add_node!(neat, individual::NEIndividual, kind::Symbol)
+	node = NENode(neat.innovation_number, kind)
+	neat.innovation_number += 1
+	individual.need_rebuild = true
 	push!(individual.nodes, node)
 	return node
 end
 
 
-add_hidden_node!(individual::NEIndividual) = add_node!(individual, :hidden)
-add_input_node!(individual::NEIndividual)  = add_node!(individual, :input)
-add_bias_node!(individual::NEIndividual)   = add_node!(individual, :bias)
-add_output_node!(individual::NEIndividual) = add_node!(individual, :output)
+add_hidden_node!(neat, individual::NEIndividual) = add_node!(neat, individual, :hidden)
+add_input_node!(neat, individual::NEIndividual)  = add_node!(neat, individual, :input)
+add_bias_node!(neat, individual::NEIndividual)   = add_node!(neat, individual, :bias)
+add_output_node!(neat, individual::NEIndividual) = add_node!(neat, individual, :output)
 
 
 input_nodes(individual::NEIndividual) = filter(is_input, individual.nodes)
-input_and_bias_nodes(individual::NEIndividual) = filter(n -> is_input(n) || is_bias(n), individual.nodes)
+
+function bias_and_input_nodes(individual::NEIndividual) 
+	bias_nodes = filter(is_bias, individual.nodes)
+	@assert(
+		length(bias_nodes) == 1,
+		"Expected exactly one bias node, found $(length(bias_nodes))"
+	)
+	return vcat(bias_nodes, input_nodes(individual))
+end
 
 
 output_nodes(individual::NEIndividual) = filter(is_output, individual.nodes)
@@ -149,7 +165,7 @@ end
 
 function add_connection(individual::NEIndividual, connection)
 	push!(individual.connections, connection)
-	reset_network(individual)
+	individual.need_rebuild = true
 end
 
 
@@ -164,19 +180,26 @@ end
 
 
 function build_network(individual::NEIndividual)
-	@assert is_bias(get_node(individual, 1)) "Missing bias node"
+	individual.need_rebuild || return
 	reset_network(individual)
 
 	for c in filter(is_enabled, individual.connections)
-		connect(individual.nodes[c.in], individual.nodes[c.out], c.weight)
-		individual.nodes[c.out].inputs_count += 1
+		in_node = get_node(individual, c.in)
+		out_node = get_node(individual, c.out)
+		connect(in_node, out_node, c.weight)
+		out_node.inputs_count += 1
 	end
+	individual.need_rebuild = false
 end
 
 
 function compute_fitness(individual::NEIndividual, fitness::Function)
 	# If the fitness is already computed, then return it
-	isnothing(individual.fitness) || return individual.fitness
+	if (!individual.need_rebuild && !isnothing(individual.fitness)) 
+		return individual.fitness
+	end
+
+	individual.need_rebuild && build_network(individual)
 
 	# Else it is computed
 	individual.fitness = fitness(individual)
@@ -187,18 +210,19 @@ end
 # Evaluate the network using some input values. Returns the outputs.
 function evaluate(individual::NEIndividual, values)
 	if length(values) != inputs_count(individual)
-		@error "Missing input values when evaluating the network"
-		return
+		error("Missing input values when evaluating the network")
 	end
 	build_network(individual)
 
 	# The value 1 is provided to the bias node
-	for (n, v) in zip(input_and_bias_nodes(individual), vcat([1], values))
+	for (n, v) in zip(bias_and_input_nodes(individual), vcat([1], values))
 		evaluate!(n, v)
 	end
 
 	# Return the result of the network evaluation
-	return map(n->n.result, output_nodes(individual))
+	result = map(n->n.result, output_nodes(individual))
+	reset_network_after_evaluation(individual)
+	return result
 end
 
 
@@ -225,6 +249,13 @@ function reset_network(individual::NEIndividual)
 	individual.fitness = nothing
 	for n in individual.nodes
 		reset_node(n)
+	end
+end
+
+
+function reset_network_after_evaluation(individual::NEIndividual)
+	for n in individual.nodes
+		reset_node_after_evaluation(n)
 	end
 end
 
@@ -411,7 +442,7 @@ function mutation_add_node(neat, individual::NEIndividual)
 	c.enabled = false
 
 	# Add a hidden node ...
-	added_node = add_hidden_node!(individual)
+	added_node = add_hidden_node!(neat, individual)
 
 	# ... and two connections
 	c1 = NEConnection(c.in, added_node.id, 1, true, neat.innovation_number)
@@ -419,10 +450,8 @@ function mutation_add_node(neat, individual::NEIndividual)
 	neat.innovation_number += 1
 
 	c2 = NEConnection(added_node.id, c.out, c.weight, true, neat.innovation_number)
-	push!(individual.connections, c2)
+	add_connection(individual, c2)
 	neat.innovation_number += 1
-
-	reset_network(individual)
 end
 
 
@@ -431,7 +460,6 @@ end
 function mutation_connection_weight(neat, individual::NEIndividual)
 	isempty(individual.connections) && return
 	rand(individual.connections).weight = random_weight()
-	reset_network(individual)
 end
 
 
@@ -514,12 +542,13 @@ function do_mutate(neat::NEAT, individual::NEIndividual)
 		f(neat, individual)
 
 		individual.fitness = nothing
+		individual.need_rebuild = true
 		return
 	end
-	individual.fitness = nothing
 end
 
 
+import Dates: Dates, now
 function run(neat::NEAT)
 	before_time = now()
 
@@ -540,12 +569,12 @@ function build_initial_population(neat::NEAT)
 	neat.population = []
 	for _ in 1:neat.population_size
 		i = NEIndividual()
-		add_bias_node!(i)
+		add_bias_node!(neat, i)
 		for _ in 1:neat.inputs_count
-			add_input_node!(i)
+			add_input_node!(neat, i)
 		end
 		for _ in 1:neat.outputs_count
-			add_output_node!(i)
+			add_output_node!(neat, i)
 		end
 		push!(neat.population, i)
 	end
@@ -641,7 +670,6 @@ function produce_new_individual(neat::NEAT)
 			new_ind = copy(i1)
 		end
 	else
-		ind = select_individual(neat)
 		new_ind = copy(select_individual(neat))
 	end
 	do_mutate(neat, new_ind)
@@ -675,13 +703,13 @@ best_individual(neat::NEAT) = neat.logs[end].best_individual
 ## Visualizing the evolution
 using Plots: plot, plot!
 
-function ne_plot(neat::NEAT)
+function ne_plot(neat::NEAT, log_scale::Bool=false)
 	logs = neat.logs
 	best_fitnesses = [l.max_fitness for l in logs]
 	worse_fitnesses = [l.min_fitness for l in logs]
 	average_fitnesses = [l.average_fitness for l in logs]
 
-	p = plot()
+	p = plot(yscale = log_scale ? :log10 : :identity)
 	plot!(p, best_fitnesses, color=:green, label="best")
 	plot!(p, average_fitnesses, color=:gray70, label="average")
 	plot!(p, worse_fitnesses, color=:lightblue2, label="worse")
@@ -695,6 +723,7 @@ end
 
 
 ## The XOR example
+using Random
 dataset = [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 0]]
 
 function xor_fitness(ind)
@@ -756,6 +785,10 @@ round(correct_ratio, digits = 2)
 
 
 ## Loading and saving
+import Pkg
+Pkg.add("Serialization")
+
+
 dataset = [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 0]]
 function xor_fitness(ind)
 	score = 0

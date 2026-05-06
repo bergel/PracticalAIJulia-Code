@@ -7,7 +7,7 @@ d = Dict("AB"=>10, "AD"=>10, "BC"=>10, "CD"=>10, "AC"=>20, "BD"=>8)
 function tsp_abcd_f(genes)
 	current_city = first(genes)
 	path_length = 0
-	for next_city in genes[2:end]
+	for next_city in vcat(genes[2:end], [current_city])
 		segment = string(current_city, next_city)
 		opposite_segment = string(next_city, current_city)
 		if haskey(d, segment)
@@ -36,7 +36,7 @@ d = Dict("AB"=>10, "AD"=>10, "BC"=>10, "CD"=>10, "AC"=>20, "BD"=>8)
 function tsp_abcd_f(genes)
 	current_city = first(genes)
 	path_length = 0
-	for next_city in genes[2:end]
+	for next_city in vcat(genes[2:end], [current_city])
 		segment = string(current_city, next_city)
 		opposite_segment = string(next_city, current_city)
 		if haskey(d, segment)
@@ -94,13 +94,16 @@ cities = [
 	(100, 40), (20, 20), (60, 80), (180, 200), (160, 20)
 ]
 
+function distance(city1::Tuple, city2::Tuple)
+	return sqrt((city2[1]-city1[1])^2 + (city2[2]-city1[2])^2)
+end
+
 function path_length_f(genes)
 	path_length = 0
 	for index in 2:length(genes)
-		p1 = genes[index-1]
-		p2 = genes[index]
-		path_length += sqrt((p2[1]-p1[1])^2 + (p2[2]-p1[2])^2)
+		path_length += distance(genes[index], genes[index-1])
 	end
+	path_length += distance(genes[end], genes[1])
 	penalty = (length(genes) - length(Set(genes))) * 1000
 	return path_length + penalty
 end
@@ -119,7 +122,8 @@ ga_plot(logs)
 
 function view_path(logs)
 	c = RCanvas()
-	path = logs[end].best.genes
+	all_cities = logs[end].best.genes
+	path = vcat(all_cities, first(all_cities))
 
 	for pos in cities
 		box = RCircle(; color=RColor(0, 1.0, 0), radius=5, model=pos)
@@ -231,14 +235,18 @@ cities = [
 	(100, 40), (20, 20), (60, 80), (180, 200), (160, 20)
 ]
 
+function distance(city1::Tuple, city2::Tuple)
+	return sqrt((city2[1]-city1[1])^2 + (city2[2]-city1[2])^2)
+end
+
 function path_length_f(genes)
 	path_length = 0
 	for index in 2:length(genes)
-		p1 = genes[index-1]
-		p2 = genes[index]
-		path_length += sqrt((p2[1]-p1[1])^2 + (p2[2]-p1[2])^2)
+		path_length += distance(genes[index], genes[index-1])
 	end
-	return path_length
+	path_length += distance(genes[end], genes[1])
+	penalty = (length(genes) - length(Set(genes))) * 1000
+	return path_length + penalty
 end
 
 function pick_value(individual_being_build::Individual)

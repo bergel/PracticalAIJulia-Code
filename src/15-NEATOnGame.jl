@@ -52,12 +52,12 @@ run(neat)
 
 
 using Serialization
-Serialization.serialize("mario.bin", best_individual(neat))
+Serialization.serialize("game.bin", best_individual(neat))
 
 
-ind = Serialization.deserialize("mario.bin")
+ind = Serialization.deserialize("game.bin")
 world = MNWorld(;
-	ai_agent = MNAIAgent_NEAT(copy(ind)),
+	ai_agent = MNAIAgent_NEAT(ind),
 	monsters_count=MONSTER_COUNT,
 	platforms_count=PLATFORM_COUNT,
 	tubes_count=TUBES_COUNT,

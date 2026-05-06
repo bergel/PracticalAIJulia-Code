@@ -2,12 +2,12 @@
 using Roassal
 
 
-## Modeling join points
+## Modeling joint points
 mutable struct CNode
-	force
+	force::Tuple{Float64, Float64}
 	speed_vector::Tuple{Float64, Float64}
 	is_on_platform::Bool
-	shape
+	shape::RCircle
 
 	CNode() = CNode(:gray)
 	CNode(color::Symbol) = new((0.0, 0.0), (0.0, 0.0), false, RCircle(; color=color))
@@ -58,9 +58,9 @@ end
 
 ## Modeling platforms
 mutable struct CPlatform
-	width
-	height
-	shape
+	width::Int
+	height::Int
+	shape::RBox
 
 	CPlatform() = CPlatform(80, 10)
 	CPlatform(w) = CPlatform(w, 10)
@@ -94,13 +94,13 @@ end
 
 ## Modeling Muscle
 mutable struct CMuscle
-	time
-	time1
-	time2
-	length1
-	length2
-	strength
-	shape
+	time::Int
+	time1::Int
+	time2::Int
+	length1::Int
+	length2::Int
+	strength::Float64
+	shape::RLine
 	node1::CNode
 	node2::CNode
 end
@@ -129,12 +129,12 @@ max_time(muscle::CMuscle) = max(muscle.time1, muscle.time2)
 
 ## Generating muscles
 struct CMuscleGenerator
-	min_strength
-	delta_strength
-	min_length
-	delta_length
-	min_time
-	delta_time
+	min_strength::Float64
+	delta_strength::Float64
+	min_length::Int
+	delta_length::Int
+	min_time::Int
+	delta_time::Int
 
 	CMuscleGenerator() = CMuscleGenerator(0.01, 0.5, 10, 80, 10, 100)
 	CMuscleGenerator(a, b, c, d, e, f) = new(a, b, c, d, e, f)
@@ -191,6 +191,7 @@ end
 
 
 function value_for_index(muscle_generator, index)
+	# We have 5 attributes per muscles
 	i = mod(index - 1, 5)
 	(i == 0 || i == 1) && return generate_length(muscle_generator)
 	i == 2 && return generate_strength(muscle_generator)
@@ -202,7 +203,7 @@ end
 mutable struct CCreature
 	nodes::Vector{CNode}
 	muscles::Vector{CMuscle}
-	color
+	color::Symbol
 
 	CCreature() = CCreature(:gray)
 	CCreature(color::Symbol) = new([], [], color)
@@ -215,6 +216,8 @@ end
 
 
 function add_muscle!(creature::CCreature, node1::CNode, node2::CNode, mg::CMuscleGenerator)
+	@assert node1 in creature.nodes
+	@assert node2 in creature.nodes
 	push!(creature.muscles, build_muscle(mg, node1, node2))
 end
 
@@ -230,7 +233,7 @@ function beat!(creature::CCreature)
 	for m in creature.muscles
 		beat!(m)
 	end
-	do_physic!(creature)
+	do_physics!(creature)
 end
 
 
@@ -272,16 +275,16 @@ function CCreature(
 end
 
 
-function do_physic!(creature::CCreature)
-	for n in creature.nodes
-		n.force = (0, 0)
+function do_physics!(creature::CCreature)
+	for node in creature.nodes
+		node.force = (0.0, 0.0)
 	end
-	r(delta) = sqrt(delta[1] * delta[1] + delta[2] * delta[2])
+	distance(delta) = sqrt(delta[1] * delta[1] + delta[2] * delta[2])
 	for m in creature.muscles
 		n1 = m.node1
 		n2 = m.node2
 		delta = get_pos(n2) .- get_pos(n1)
-		actual_length = max(1, r(delta))
+		actual_length = max(1, distance(delta))
 
 		unit = delta ./ actual_length
 		force = 0.1 * m.strength * (actual_length - muscle_length(m)) .* unit
@@ -327,25 +330,28 @@ end
 
 ## Defining the World
 mutable struct CWorld
-	creatures
-	platforms
-	time
-	canvas
-	ground_length
+	creatures::Vector{CCreature}
+	platforms::Vector{CPlatform}
+	time::Int
+	canvas::RCanvas
+	ground_length::Int
 end
 
 function CWorld()
 	# 5000 corresponds to size of the world
-	w = CWorld([], [], 0, [], 5000)
-	w.canvas = RCanvas()
+	w = CWorld([], [], 0, RCanvas(), 5000)
 	add_ground!(w)
 	return w
 end
 
 
 function add_ground!(world::CWorld)
-	ground_platform = CPlatform(world.ground_length + 500)
+	extra_platform_length = 500
+	ground_platform = CPlatform(world.ground_length + extra_platform_length)
 	add_platform!(world, ground_platform)
+
+	# horizontally translate the ground platform to the center of our world
+	# the ground is 100 pixels below the Y-axis.
 	translate_to!(ground_platform.shape, (world.ground_length/2, 100))
 end
 
@@ -400,6 +406,7 @@ function open_world(world::CWorld)
 		beat!(world)
 		if !isempty(world.creatures)
 			p = get_pos(world.creatures[1])
+			# Center the canvas on the first creature
 			translate_to!(world.canvas, (-p[1], 0))
 		end
 		sleep(0.05)
