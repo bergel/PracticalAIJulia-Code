@@ -58,4 +58,4 @@ open_world(w)
 
 ## Climbing stairs
 ## Alternative Fitness Function
-## Summary
+## What have we seen in this chapter?
